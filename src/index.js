@@ -45,13 +45,68 @@ const server = new smtp.SMTPServer({
           const data = Buffer.concat(dataBuffer).toString();
           console.log("Email data received:", data);
 
+          // Extract email body (HTML preferred, fallback to plain text)
+          let emailBody = "";
+
+          // For multipart emails
+          if (data.includes("Content-Type: multipart/")) {
+            const boundaryMatch = data.match(/boundary="([^"]+)"/);
+            if (boundaryMatch && boundaryMatch[1]) {
+              const boundary = boundaryMatch[1];
+              const parts = data.split(`--${boundary}`);
+
+              // First try to find HTML part
+              let htmlPart = null;
+              let textPart = null;
+
+              for (const part of parts) {
+                if (part.includes("Content-Type: text/html")) {
+                  htmlPart = part;
+                } else if (part.includes("Content-Type: text/plain")) {
+                  textPart = part;
+                }
+              }
+
+              // Prefer HTML over plain text
+              const selectedPart = htmlPart || textPart;
+              if (selectedPart) {
+                // Extract content after headers (handle different header formats)
+                const headerEndIndex =
+                  selectedPart.indexOf("\r\n\r\n") !== -1
+                    ? selectedPart.indexOf("\r\n\r\n") + 4
+                    : selectedPart.indexOf("\n\n") + 2;
+
+                if (headerEndIndex > 0) {
+                  emailBody = selectedPart.substring(headerEndIndex).trim();
+                }
+              }
+            }
+          } else {
+            // For single part emails, find where headers end and body begins
+            const headerEndIndex =
+              data.indexOf("\r\n\r\n") !== -1
+                ? data.indexOf("\r\n\r\n") + 4
+                : data.indexOf("\n\n") + 2;
+
+            if (headerEndIndex > 0) {
+              emailBody = data.substring(headerEndIndex).trim();
+            } else {
+              emailBody = data; // Fallback to full content
+            }
+          }
+
+          // If we couldn't parse the body correctly, store the original content
+          if (!emailBody) {
+            emailBody = data;
+          }
+
           // Store email in database for the recipient user
-          const { error: insertError } = await supabase.from("mails").insert({
+          const { error: insertError } = await supabase.from("mail").insert({
             from: session.envelope.mailFrom.address,
             to: session.envelope.rcptTo[0].address,
             subject: data.match(/Subject: (.*)/i)?.[1] || "",
-            data: data,
-            user_id: user.id,
+            body: emailBody,
+            userId: user.id,
           });
 
           if (insertError) {
