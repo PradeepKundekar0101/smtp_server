@@ -21,6 +21,7 @@ const server = new smtp.SMTPServer({
     try {
       const recipientUser = session.envelope.rcptTo[0].address.split("@")[0];
 
+      console.log("Looking for user:", recipientUser);
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")

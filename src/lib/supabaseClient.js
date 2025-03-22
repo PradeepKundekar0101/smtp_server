@@ -7,14 +7,14 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY,
   {
-    db: {
-      schema: "rainbox",
-    },
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   }
 );
+
+// Set schema for all queries
+supabase.schema("rainbox");
 
 module.exports = supabase;
