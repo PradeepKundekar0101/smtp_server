@@ -14,7 +14,4 @@ const supabase = createClient(
   }
 );
 
-// Set schema for all queries
-supabase.schema("rainbox");
-
 module.exports = supabase;
