@@ -22,9 +22,9 @@ const server = new smtp.SMTPServer({
       const recipientUser = session.envelope.rcptTo[0].address.split("@")[0];
 
       const { data: user, error: userError } = await supabase
-        .from("user")
+        .from("users")
         .select("*")
-        .eq("username", recipientUser)
+        .eq("user_name", recipientUser)
         .single();
 
       if (userError) {
@@ -99,14 +99,42 @@ const server = new smtp.SMTPServer({
           if (!emailBody) {
             emailBody = data;
           }
+          const senderEmail = session.envelope.mailFrom.address;
+          const toEmail = session.envelope.rcptTo[0].address;
+          const { data: senders, error: sendersError } = await supabase
+            .from("senders")
+            .select("*")
+            .eq("user_id", user.id);
+          if (sendersError) {
+            console.error("Failed to get senders:", sendersError);
+            return callback(new Error("Failed to get senders"));
+          }
+          let sender = senders.find((sender) => sender.email === senderEmail);
+          if (!sender) {
+            const { data: newSender, error: newSenderError } = await supabase
+              .from("senders")
+              .insert({
+                name: senderEmail.split("@")[0],
+                email: senderEmail,
+                domain: senderEmail.split("@")[1],
+                order: senders.length + 1,
+                user_id: user.id,
+              });
+            if (newSenderError) {
+              console.error("Failed to create sender:", newSenderError);
+              return callback(new Error("Failed to create sender"));
+            }
+            sender = newSender;
+          }
 
           // Store email in database for the recipient user
-          const { error: insertError } = await supabase.from("mail").insert({
-            from: session.envelope.mailFrom.address,
-            to: session.envelope.rcptTo[0].address,
+          const { error: insertError } = await supabase.from("mails").insert({
+            from: senderEmail,
+            to: toEmail,
             subject: data.match(/Subject: (.*)/i)?.[1] || "",
             body: emailBody,
-            userId: user.id,
+            user_id: user.id,
+            sender_id: sender.id,
           });
 
           if (insertError) {
