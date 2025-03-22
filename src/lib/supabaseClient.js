@@ -11,7 +11,13 @@ const supabase = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
+    db: {
+      schema: "rainbox",
+    },
   }
 );
+
+// Enable debugging to see what's happening
+supabase.from("users").select("*").then(console.log).catch(console.error);
 
 module.exports = supabase;

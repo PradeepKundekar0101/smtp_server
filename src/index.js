@@ -23,7 +23,7 @@ const server = new smtp.SMTPServer({
 
       console.log("Looking for user:", recipientUser);
       const { data: user, error: userError } = await supabase
-        .from("rainbox.users")
+        .from("users")
         .select("*")
         .eq("user_name", recipientUser)
         .single();
@@ -103,7 +103,7 @@ const server = new smtp.SMTPServer({
           const senderEmail = session.envelope.mailFrom.address;
           const toEmail = session.envelope.rcptTo[0].address;
           const { data: senders, error: sendersError } = await supabase
-            .from("rainbox.senders")
+            .from("senders")
             .select("*")
             .eq("user_id", user.id);
           if (sendersError) {
@@ -113,7 +113,7 @@ const server = new smtp.SMTPServer({
           let sender = senders.find((sender) => sender.email === senderEmail);
           if (!sender) {
             const { data: newSender, error: newSenderError } = await supabase
-              .from("rainbox.senders")
+              .from("senders")
               .insert({
                 name: senderEmail.split("@")[0],
                 email: senderEmail,
@@ -129,16 +129,14 @@ const server = new smtp.SMTPServer({
           }
 
           // Store email in database for the recipient user
-          const { error: insertError } = await supabase
-            .from("rainbox.mails")
-            .insert({
-              from: senderEmail,
-              to: toEmail,
-              subject: data.match(/Subject: (.*)/i)?.[1] || "",
-              body: emailBody,
-              user_id: user.id,
-              sender_id: sender.id,
-            });
+          const { error: insertError } = await supabase.from("mails").insert({
+            from: senderEmail,
+            to: toEmail,
+            subject: data.match(/Subject: (.*)/i)?.[1] || "",
+            body: emailBody,
+            user_id: user.id,
+            sender_id: sender.id,
+          });
 
           if (insertError) {
             console.error("Failed to store email:", insertError);
