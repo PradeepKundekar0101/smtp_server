@@ -120,18 +120,29 @@ const server = new smtp.SMTPServer({
                 domain: senderEmail.split("@")[1],
                 order: senders.length + 1,
                 user_id: user.id,
+                count: 1,
               });
             if (newSenderError) {
               console.error("Failed to create sender:", newSenderError);
               return callback(new Error("Failed to create sender"));
             }
             sender = newSender;
+          } else {
+            const { error: updateError } = await supabase
+              .from("senders")
+              .update({ count: sender.count + 1 })
+              .eq("id", sender.id);
+            if (updateError) {
+              console.error("Failed to update sender:", updateError);
+              return callback(new Error("Failed to update sender"));
+            }
           }
-
+          console.log("Sender:", sender);
+          console.log("User:", user);
           // Store email in database for the recipient user
           const { error: insertError } = await supabase.from("mails").insert({
-            from: senderEmail,
             to: toEmail,
+            from: senderEmail,
             subject: data.match(/Subject: (.*)/i)?.[1] || "",
             body: emailBody,
             user_id: user.id,
