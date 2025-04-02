@@ -111,9 +111,8 @@ const server = new smtp.SMTPServer({
             return callback(new Error("Failed to get senders"));
           }
           let sender = senders.find((sender) => sender.email === senderEmail);
-          console.log("sender", sender);
           if (!sender) {
-            const { data: newSender, error: newSenderError } = await supabase
+            const { error: newSenderError } = await supabase
               .from("senders")
               .insert({
                 name: senderEmail.split("@")[0],
@@ -127,7 +126,13 @@ const server = new smtp.SMTPServer({
               console.error("Failed to create sender:", newSenderError);
               return callback(new Error("Failed to create sender"));
             }
-            sender = newSender;
+            const { data: newSenderData, error: newSenderDataError } =
+              await supabase
+                .from("senders")
+                .select("*")
+                .eq("email", senderEmail)
+                .single();
+            sender = newSenderData;
           } else {
             const { error: updateError } = await supabase
               .from("senders")
@@ -138,8 +143,7 @@ const server = new smtp.SMTPServer({
               return callback(new Error("Failed to update sender"));
             }
           }
-          console.log("Sender:", sender);
-          console.log("User:", user);
+
           // Store email in database for the recipient user
           const { error: insertError } = await supabase.from("mails").insert({
             subject: data.match(/Subject: (.*)/i)?.[1] || "",
