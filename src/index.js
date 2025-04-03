@@ -150,6 +150,7 @@ const server = new smtp.SMTPServer({
             body: emailBody,
             user_id: user.id,
             sender_id: sender.id,
+            domain: senderEmail.split("@")[1],
           });
 
           if (insertError) {
