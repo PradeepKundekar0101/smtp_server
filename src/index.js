@@ -27,9 +27,30 @@ const server = new smtp.SMTPServer({
         .select("*")
         .eq("user_name", recipientUser)
         .single();
-
+      let userId = user.id;
       if (userError) {
         console.error("User not found:", userError);
+        console.log("Searching in Secondary Emails");
+
+        const { data: secondaryEmail, error: secondaryEmailError } =
+          await supabase
+            .from("secondary_emails")
+            .select("*")
+            .eq("name", recipientUser)
+            .single();
+
+        if (secondaryEmailError) {
+          console.error("Failed to get secondary email:", secondaryEmailError);
+          return callback(
+            new Error(
+              "Failed to get secondary email: " + secondaryEmailError.message
+            )
+          );
+        }
+        if (secondaryEmail) {
+          userId = secondaryEmail.user_id;
+          console.log("User found in Secondary Emails:", userId);
+        }
         return callback(
           new Error(`Recipient user not found: ${recipientUser}`)
         );
@@ -105,7 +126,7 @@ const server = new smtp.SMTPServer({
           const { data: senders, error: sendersError } = await supabase
             .from("senders")
             .select("*")
-            .eq("user_id", user.id);
+            .eq("user_id", userId);
           if (sendersError) {
             console.error("Failed to get senders:", sendersError);
             return callback(new Error("Failed to get senders"));
@@ -119,7 +140,7 @@ const server = new smtp.SMTPServer({
                 email: senderEmail,
                 domain: senderEmail.split("@")[1],
                 order: senders.length + 1,
-                user_id: user.id,
+                user_id: userId,
                 count: 1,
               });
             if (newSenderError) {
@@ -148,7 +169,7 @@ const server = new smtp.SMTPServer({
           const { error: insertError } = await supabase.from("mails").insert({
             subject: data.match(/Subject: (.*)/i)?.[1] || "",
             body: emailBody,
-            user_id: user.id,
+            user_id: userId,
             sender_id: sender.id,
           });
 
