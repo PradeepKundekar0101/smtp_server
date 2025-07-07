@@ -27,8 +27,8 @@ const server = new smtp.SMTPServer({
         .select("*")
         .eq("user_name", recipientUser)
         .single();
-      let userId = user.id;
-      if (userError) {
+      let userId = user?.id;
+      if (userError || !user) {
         console.error("User not found:", userError);
         console.log("Searching in Secondary Emails");
 
