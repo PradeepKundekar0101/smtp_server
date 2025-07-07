@@ -50,10 +50,11 @@ const server = new smtp.SMTPServer({
         if (secondaryEmail) {
           userId = secondaryEmail.user_id;
           console.log("User found in Secondary Emails:", userId);
+        } else {
+          return callback(
+            new Error(`Recipient user not found: ${recipientUser}`)
+          );
         }
-        return callback(
-          new Error(`Recipient user not found: ${recipientUser}`)
-        );
       }
 
       // Collect email data
