@@ -3,24 +3,24 @@ const promClient = require("prom-client");
 const supabase = require("./lib/supabaseClient");
 const express = require("express");
 const app = express();
-const {transports,createLogger, log} = require("winston")
-const LokiTransport = require("winston-loki")
+const { transports, createLogger, log } = require("winston");
+const LokiTransport = require("winston-loki");
 const options = {
   transports: [
     new LokiTransport({
-      host:"http://13.126.245.89:3100"
-    })
-  ]
-}
-const logger = createLogger(options)
-const collectDefaultMetrics = promClient.collectDefaultMetrics
+      host: "http://13.126.245.89:3100",
+    }),
+  ],
+};
+const logger = createLogger(options);
+const collectDefaultMetrics = promClient.collectDefaultMetrics;
 collectDefaultMetrics({
-  register: promClient.register
-})
+  register: promClient.register,
+});
 const totalRequestCounter = new promClient.Counter({
-  name:"total_requests",
-  help:"Indicates the total request to the server",
-})
+  name: "total_requests",
+  help: "Indicates the total request to the server",
+});
 // app.use((req,res,next)=>{
 //   totalRequestCounter.inc()
 //   next()
@@ -29,16 +29,16 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hello World");
 });
-app.get("/metrics",async(req,res)=>{
-  try{
-    res.setHeader("Content-Type", promClient.register.contentType)
-    const metrics = await promClient.register.metrics()
-    res.send(metrics)
+app.get("/metrics", async (req, res) => {
+  try {
+    res.setHeader("Content-Type", promClient.register.contentType);
+    const metrics = await promClient.register.metrics();
+    res.send(metrics);
     // logger.info("Metrics fetched")
-  }catch(err){
-    res.status(500).send(err)
+  } catch (err) {
+    res.status(500).send(err);
   }
-})
+});
 
 app.listen(5000, () => {
   logger.info("Express server listening on port 5000");
@@ -61,7 +61,7 @@ const server = new smtp.SMTPServer({
   },
   async onData(stream, session, callback) {
     logger.info("SMTP onData event", { session });
-    totalRequestCounter.inc()
+    totalRequestCounter.inc();
     try {
       const recipientUser = session.envelope.rcptTo[0].address.split("@")[0];
 
@@ -200,6 +200,7 @@ const server = new smtp.SMTPServer({
                 .from("senders")
                 .select("*")
                 .eq("email", senderEmail)
+                .eq("mail_service", "rainbox")
                 .single();
             sender = newSenderData;
           } else {
