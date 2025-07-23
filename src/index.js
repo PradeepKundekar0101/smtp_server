@@ -21,10 +21,10 @@ const totalRequestCounter = new promClient.Counter({
   name:"total_requests",
   help:"Indicates the total request to the server",
 })
-app.use((req,res,next)=>{
-  totalRequestCounter.inc()
-  next()
-})
+// app.use((req,res,next)=>{
+//   totalRequestCounter.inc()
+//   next()
+// })
 app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hello World");
@@ -34,7 +34,7 @@ app.get("/metrics",async(req,res)=>{
     res.setHeader("Content-Type", promClient.register.contentType)
     const metrics = await promClient.register.metrics()
     res.send(metrics)
-    logger.info("Metrics fetched")
+    // logger.info("Metrics fetched")
   }catch(err){
     res.status(500).send(err)
   }
