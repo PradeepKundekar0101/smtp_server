@@ -132,7 +132,10 @@ const server = new smtp.SMTPServer({
             console.error("Failed to get senders:", sendersError);
             return callback(new Error("Failed to get senders"));
           }
-          let sender = senders.find((sender) => sender.email === senderEmail);
+          let sender = senders.find(
+            (sender) =>
+              sender.email === senderEmail && sender.mail_service === "rainbox"
+          );
           if (!sender) {
             const { error: newSenderError } = await supabase
               .from("senders")
