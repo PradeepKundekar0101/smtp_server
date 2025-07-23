@@ -1,27 +1,71 @@
 const smtp = require("smtp-server");
+const promClient = require("prom-client");
 const supabase = require("./lib/supabaseClient");
+const express = require("express");
+const app = express();
+const {transports,createLogger, log} = require("winston")
+const LokiTransport = require("winston-loki")
+const options = {
+  transports: [
+    new LokiTransport({
+      host:"http://13.126.245.89:3100"
+    })
+  ]
+}
+const logger = createLogger(options)
+const collectDefaultMetrics = promClient.collectDefaultMetrics
+collectDefaultMetrics({
+  register: promClient.register
+})
+const totalRequestCounter = new promClient.Counter({
+  name:"total_requests",
+  help:"Indicates the total request to the server",
+})
+// app.use((req,res,next)=>{
+//   totalRequestCounter.inc()
+//   next()
+// })
+app.use(express.json());
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
+app.get("/metrics",async(req,res)=>{
+  try{
+    res.setHeader("Content-Type", promClient.register.contentType)
+    const metrics = await promClient.register.metrics()
+    res.send(metrics)
+    // logger.info("Metrics fetched")
+  }catch(err){
+    res.status(500).send(err)
+  }
+})
+
+app.listen(5000, () => {
+  logger.info("Express server listening on port 5000");
+});
 
 const server = new smtp.SMTPServer({
   allowInsecureAuth: true,
   authOptional: true,
   onConnect(session, callback) {
-    console.log("onConnect", session);
+    logger.info("SMTP onConnect", { session });
     callback();
   },
   onMailFrom(address, session, callback) {
-    console.log("onMailFrom", address, session, callback);
+    logger.info("SMTP onMailFrom", { address, session });
     callback();
   },
   async onRcptTo(address, session, callback) {
-    console.log("onRcptTo", address, session, callback);
+    logger.info("SMTP onRcptTo", { address, session });
     callback();
   },
   async onData(stream, session, callback) {
-    console.log("onData", stream, session, callback);
+    logger.info("SMTP onData event", { session });
+    totalRequestCounter.inc()
     try {
       const recipientUser = session.envelope.rcptTo[0].address.split("@")[0];
 
-      console.log("Looking for user:", recipientUser);
+      logger.info("Looking for user", { recipientUser });
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
@@ -29,8 +73,8 @@ const server = new smtp.SMTPServer({
         .single();
       let userId = user?.id;
       if (userError || !user) {
-        console.error("User not found:", userError);
-        console.log("Searching in Secondary Emails");
+        logger.error("User not found:", userError);
+        logger.info("Searching in Secondary Emails");
 
         const { data: secondaryEmail, error: secondaryEmailError } =
           await supabase
@@ -40,7 +84,7 @@ const server = new smtp.SMTPServer({
             .single();
 
         if (secondaryEmailError) {
-          console.error("Failed to get secondary email:", secondaryEmailError);
+          logger.error("Failed to get secondary email:", secondaryEmailError);
           return callback(
             new Error(
               "Failed to get secondary email: " + secondaryEmailError.message
@@ -49,7 +93,7 @@ const server = new smtp.SMTPServer({
         }
         if (secondaryEmail) {
           userId = secondaryEmail.user_id;
-          console.log("User found in Secondary Emails:", userId);
+          logger.info("User found in Secondary Emails", { userId });
         } else {
           return callback(
             new Error(`Recipient user not found: ${recipientUser}`)
@@ -66,7 +110,7 @@ const server = new smtp.SMTPServer({
       stream.on("end", async () => {
         try {
           const data = Buffer.concat(dataBuffer).toString();
-          console.log("Email data received:", data);
+          logger.info("Email data received", { length: data.length });
 
           // Extract email body (HTML preferred, fallback to plain text)
           let emailBody = "";
@@ -129,7 +173,7 @@ const server = new smtp.SMTPServer({
             .select("*")
             .eq("user_id", userId);
           if (sendersError) {
-            console.error("Failed to get senders:", sendersError);
+            logger.error("Failed to get senders:", sendersError);
             return callback(new Error("Failed to get senders"));
           }
           let sender = senders.find(
@@ -148,7 +192,7 @@ const server = new smtp.SMTPServer({
                 count: 1,
               });
             if (newSenderError) {
-              console.error("Failed to create sender:", newSenderError);
+              logger.error("Failed to create sender:", newSenderError);
               return callback(new Error("Failed to create sender"));
             }
             const { data: newSenderData, error: newSenderDataError } =
@@ -164,7 +208,7 @@ const server = new smtp.SMTPServer({
               .update({ count: sender.count + 1 })
               .eq("id", sender.id);
             if (updateError) {
-              console.error("Failed to update sender:", updateError);
+              logger.error("Failed to update sender:", updateError);
               return callback(new Error("Failed to update sender"));
             }
           }
@@ -178,29 +222,29 @@ const server = new smtp.SMTPServer({
           });
 
           if (insertError) {
-            console.error("Failed to store email:", insertError);
+            logger.error("Failed to store email:", insertError);
             return callback(new Error("Failed to store email"));
           }
 
-          console.log("Email stored successfully for user:", recipientUser);
+          logger.info("Email stored successfully for user:", { recipientUser });
           callback();
         } catch (err) {
-          console.error("Error processing email data:", err);
+          logger.error("Error processing email data:", err);
           callback(err);
         }
       });
 
       stream.on("error", (err) => {
-        console.error("Stream error:", err);
+        logger.error("Stream error:", err);
         callback(err);
       });
     } catch (err) {
-      console.error("Unexpected error in onData:", err);
+      logger.error("Unexpected error in onData:", err);
       callback(err);
     }
   },
 });
 
 server.listen(25, "0.0.0.0", () => {
-  console.log("Server listening on port 25");
+  logger.info("SMTP server listening on port 25");
 });
