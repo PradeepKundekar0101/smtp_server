@@ -9,6 +9,7 @@ const path = require("path");
 
 const app = express();
 
+// === Logger Setup ===
 const logger = createLogger({
   level: "info",
   format: format.combine(format.timestamp(), format.json()),
@@ -19,6 +20,7 @@ const logger = createLogger({
   ],
 });
 
+// === Prometheus Setup ===
 const collectDefaultMetrics = promClient.collectDefaultMetrics;
 collectDefaultMetrics({ register: promClient.register });
 
@@ -27,6 +29,7 @@ const totalRequestCounter = new promClient.Counter({
   help: "Indicates the total request to the server",
 });
 
+// === Express Routes ===
 app.use(express.json());
 
 app.get("/", (req, res) => res.send("Hello World"));
@@ -43,6 +46,7 @@ app.get("/metrics", async (req, res) => {
 
 app.listen(5000, () => logger.info("Express server listening on port 5000"));
 
+// === SMTP Server Setup ===
 const server = new smtp.SMTPServer({
   allowInsecureAuth: true,
   authOptional: true,
@@ -122,9 +126,10 @@ const server = new smtp.SMTPServer({
           });
 
           const emailBody = parsed.html || parsed.text || "";
-          const senderDetails = session.envelope.metadata.headers.from.value[0];
-          const senderEmail = senderDetails.address;
-          const senderName = senderDetails.name || senderEmail.split("@")[0];
+
+          const senderHeader = parsed.from?.value?.[0];
+          const senderEmail = senderHeader?.address;
+          const senderName = senderHeader?.name || senderEmail?.split("@")[0];
 
           const { data: senders, error: sendersError } = await supabase
             .from("senders")
