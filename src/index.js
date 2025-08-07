@@ -122,7 +122,9 @@ const server = new smtp.SMTPServer({
           });
 
           const emailBody = parsed.html || parsed.text || "";
-          const senderEmail = session.envelope.mailFrom.address;
+          const senderDetails = session.envelope.metadata.headers.from.value[0];
+          const senderEmail = senderDetails.address;
+          const senderName = senderDetails.name || senderEmail.split("@")[0];
 
           const { data: senders, error: sendersError } = await supabase
             .from("senders")
@@ -142,7 +144,7 @@ const server = new smtp.SMTPServer({
             const { error: insertSenderError } = await supabase
               .from("senders")
               .insert({
-                name: senderEmail.split("@")[0],
+                name: senderName,
                 email: senderEmail,
                 domain: senderEmail.split("@")[1],
                 order: senders.length + 1,
