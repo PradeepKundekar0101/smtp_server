@@ -64,6 +64,7 @@ const server = new smtp.SMTPServer({
 
   async onData(stream, session, callback) {
     logger.info("SMTP onData event", { envelope: session.envelope });
+
     totalRequestCounter.inc();
 
     try {
@@ -115,17 +116,13 @@ const server = new smtp.SMTPServer({
             headers: Object.fromEntries(parsed.headers || []),
           };
 
-          const senderEmail = session.envelope.mailFrom.address;
-
-          const body =
-            parsed.text?.trim() ||
-            parsed.html?.replace(/<[^>]+>/g, "").trim() || // crude HTML-to-text fallback
-            "[No content found]";
-
           logger.info("Parsed email metadata", {
             envelope: session.envelope,
             metadata,
           });
+
+          const emailBody = parsed.html || parsed.text || "";
+          const senderEmail = session.envelope.mailFrom.address;
 
           const { data: senders, error: sendersError } = await supabase
             .from("senders")
@@ -181,7 +178,7 @@ const server = new smtp.SMTPServer({
 
           const mailPayload = {
             subject: metadata.subject,
-            body: body,
+            body: emailBody,
             user_id: userId,
             sender_id: sender.id,
           };
