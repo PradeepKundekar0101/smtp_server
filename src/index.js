@@ -13,16 +13,9 @@ const logger = createLogger({
   level: "info",
   format: format.combine(format.timestamp(), format.json()),
   transports: [
-    new LokiTransport({
-      host: "http://13.126.245.89:3100",
-    }),
-    new transports.File({
-      filename: path.join(__dirname, "logs.txt"),
-      level: "info",
-    }),
-    new transports.Console({
-      format: format.combine(format.colorize(), format.simple()),
-    }),
+    new LokiTransport({ host: "http://13.126.245.89:3100" }),
+    new transports.File({ filename: path.join(__dirname, "logs.txt"), level: "info" }),
+    new transports.Console({ format: format.combine(format.colorize(), format.simple()) }),
   ],
 });
 
@@ -36,9 +29,7 @@ const totalRequestCounter = new promClient.Counter({
 
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Hello World");
-});
+app.get("/", (req, res) => res.send("Hello World"));
 
 app.get("/metrics", async (req, res) => {
   try {
@@ -50,9 +41,7 @@ app.get("/metrics", async (req, res) => {
   }
 });
 
-app.listen(5000, () => {
-  logger.info("Express server listening on port 5000");
-});
+app.listen(5000, () => logger.info("Express server listening on port 5000"));
 
 const server = new smtp.SMTPServer({
   allowInsecureAuth: true,
@@ -74,7 +63,8 @@ const server = new smtp.SMTPServer({
   },
 
   async onData(stream, session, callback) {
-    logger.info("SMTP onData event", { session });
+    logger.info("SMTP onData event", { envelope: session.envelope });
+
     totalRequestCounter.inc();
 
     try {
@@ -99,7 +89,7 @@ const server = new smtp.SMTPServer({
             .single();
 
         if (secondaryEmailError || !secondaryEmail) {
-          logger.error("Failed to get secondary email:", secondaryEmailError);
+          logger.error("Failed to get secondary email", { secondaryEmailError });
           return callback(new Error(`Recipient user not found: ${recipientUser}`));
         }
 
@@ -115,16 +105,24 @@ const server = new smtp.SMTPServer({
           const buffer = Buffer.concat(dataBuffer);
           const parsed = await simpleParser(buffer);
 
-          const subject = parsed.subject || "";
+          const metadata = {
+            subject: parsed.subject || "",
+            messageId: parsed.messageId,
+            date: parsed.date,
+            from: parsed.from?.text,
+            to: parsed.to?.text,
+            cc: parsed.cc?.text,
+            bcc: parsed.bcc?.text,
+            headers: Object.fromEntries(parsed.headers || []),
+          };
+
+          logger.info("Parsed email metadata", {
+            envelope: session.envelope,
+            metadata,
+          });
+
           const emailBody = parsed.html || parsed.text || "";
           const senderEmail = session.envelope.mailFrom.address;
-
-          logger.info("Parsed email", {
-            subject,
-            bodyLength: emailBody.length,
-            from: senderEmail,
-            to: session.envelope.rcptTo[0].address,
-          });
 
           const { data: senders, error: sendersError } = await supabase
             .from("senders")
@@ -179,7 +177,7 @@ const server = new smtp.SMTPServer({
           }
 
           const mailPayload = {
-            subject,
+            subject: metadata.subject,
             body: emailBody,
             user_id: userId,
             sender_id: sender.id,
@@ -194,7 +192,7 @@ const server = new smtp.SMTPServer({
             return callback(new Error("Failed to store email"));
           }
 
-          logger.info("Email saved to DB", mailPayload);
+          logger.info("Email saved to DB", { subject: mailPayload.subject });
           callback();
         } catch (err) {
           logger.error("Error parsing/storing email", err);
