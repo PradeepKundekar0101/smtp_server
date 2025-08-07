@@ -15,7 +15,6 @@ const logger = createLogger({
   format: format.combine(format.timestamp(), format.json()),
   transports: [
     new LokiTransport({ host: "http://13.126.245.89:3100" }),
-    new transports.File({ filename: path.join(__dirname, "logs.txt"), level: "info" }),
     new transports.Console({ format: format.combine(format.colorize(), format.simple()) }),
   ],
 });
