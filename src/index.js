@@ -6,6 +6,7 @@ const { simpleParser } = require("mailparser");
 const { transports, createLogger, format } = require("winston");
 const LokiTransport = require("winston-loki");
 const path = require("path");
+const { generateMailImageUrl } = require("./utils");
 
 const app = express();
 
@@ -151,6 +152,7 @@ const server = new smtp.SMTPServer({
           );
 
           if (!sender) {
+            const imageUrl = generateMailImageUrl(senderEmail.split("@")[1]);
             const { error: insertSenderError } = await supabase
               .from("senders")
               .insert({
@@ -160,6 +162,7 @@ const server = new smtp.SMTPServer({
                 order: senders.length + 1,
                 user_id: userId,
                 count: 1,
+                image_url: imageUrl,
               });
 
             if (insertSenderError) {
