@@ -6,10 +6,10 @@ const { simpleParser } = require("mailparser");
 const { transports, createLogger, format } = require("winston");
 const LokiTransport = require("winston-loki");
 const path = require("path");
-const { generateMailImageUrl } = require("./utils");
 
 const app = express();
 
+// === Logger Setup ===
 const logger = createLogger({
   level: "info",
   format: format.combine(format.timestamp(), format.json()),
@@ -21,6 +21,7 @@ const logger = createLogger({
   ],
 });
 
+// === Prometheus Setup ===
 const collectDefaultMetrics = promClient.collectDefaultMetrics;
 collectDefaultMetrics({ register: promClient.register });
 
@@ -29,6 +30,7 @@ const totalRequestCounter = new promClient.Counter({
   help: "Indicates the total request to the server",
 });
 
+// === Express Routes ===
 app.use(express.json());
 
 app.get("/", (req, res) => res.send("Hello World"));
@@ -45,6 +47,7 @@ app.get("/metrics", async (req, res) => {
 
 app.listen(5000, () => logger.info("Express server listening on port 5000"));
 
+// === SMTP Server Setup ===
 const server = new smtp.SMTPServer({
   allowInsecureAuth: true,
   authOptional: true,
@@ -148,20 +151,15 @@ const server = new smtp.SMTPServer({
           );
 
           if (!sender) {
-            const domain = senderEmail.split("@")[1];
-            const image_url = generateMailImageUrl(domain);
-
             const { error: insertSenderError } = await supabase
               .from("senders")
               .insert({
                 name: senderName,
                 email: senderEmail,
-                domain,
+                domain: senderEmail.split("@")[1],
                 order: senders.length + 1,
                 user_id: userId,
                 count: 1,
-                mail_service: "rainbox",
-                image_url, // Store the image URL
               });
 
             if (insertSenderError) {
