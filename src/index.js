@@ -163,6 +163,7 @@ const server = new smtp.SMTPServer({
                 user_id: userId,
                 count: 1,
                 image_url: imageUrl,
+                mail_service: "rainbox",
               });
 
             if (insertSenderError) {
