@@ -153,33 +153,34 @@ const server = new smtp.SMTPServer({
 
           if (!sender) {
             const imageUrl = generateMailImageUrl(senderEmail.split("@")[1]);
-            const { error: insertSenderError } = await supabase
-              .from("senders")
-              .insert({
-                name: senderName,
-                email: senderEmail,
-                domain: senderEmail.split("@")[1],
-                order: senders.length + 1,
-                user_id: userId,
-                count: 1,
-                image_url: imageUrl,
-                mail_service: "rainbox",
-              });
+            const { data: insertedSenders, error: insertSenderError } =
+              await supabase
+                .from("senders")
+                .insert({
+                  name: senderName,
+                  email: senderEmail,
+                  domain: senderEmail.split("@")[1],
+                  order: senders.length + 1,
+                  user_id: userId,
+                  count: 1,
+                  image_url: imageUrl,
+                })
+                .select(); // This returns the inserted row(s)
 
             if (insertSenderError) {
               logger.error("Failed to create sender", insertSenderError);
               return callback(new Error("Failed to create sender"));
             }
 
-            const { data: newSenderData, error: newSenderDataError } =
-              await supabase
-                .from("senders")
-                .select("*")
-                .eq("email", senderEmail)
-                .eq("mail_service", "rainbox")
-                .single();
+            sender =
+              insertedSenders && insertedSenders.length > 0
+                ? insertedSenders[0]
+                : null;
 
-            sender = newSenderData;
+            if (!sender) {
+              logger.error("Inserted sender not returned");
+              return callback(new Error("Inserted sender not returned"));
+            }
           } else {
             const { error: updateError } = await supabase
               .from("senders")
